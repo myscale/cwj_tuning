@@ -53,81 +53,32 @@ def preprocess_dataset(
             for k, t in concatenated_examples.items()
         }
         return result
-
+    
     def preprocess_supervised_dataset(examples: Dict[str, List[Any]]) -> Dict[str, Any]:
         # build inputs with format `<bos> X Y <eos>` and labels with format `<ignore> ... <ignore> Y <eos>`
         # for multiturn examples, we only mask the prompt part in each prompt-response pair.
         model_inputs = {"input_ids": [], "labels": []}
         max_length = data_args.max_source_length + data_args.max_target_length
 
-        # for query, response, history, system in construct_example(examples):
-        #     input_ids, labels = [], []
-
-        #     for turn_idx, (source_ids, target_ids) in enumerate(template.encode_multiturn(
-        #         tokenizer, query, response, history, system
-        #     )):
-        #         if len(source_ids) > data_args.max_source_length:
-        #             source_ids = source_ids[:data_args.max_source_length]
-        #         if len(target_ids) > data_args.max_target_length:
-        #             target_ids = target_ids[:data_args.max_target_length]
-
-        #         if len(input_ids) + len(source_ids) + len(target_ids) > max_length:
-        #             break
-
-        #         if turn_idx != 0 and template.efficient_eos:
-        #             source_mask = [tokenizer.eos_token_id] + [IGNORE_INDEX] * (len(source_ids) - 1)
-        #         else:
-        #             source_mask = [IGNORE_INDEX] * len(source_ids)
-
-        #         input_ids += source_ids + target_ids
-        #         labels += source_mask + target_ids
-
-        #     if template.efficient_eos:
-        #         input_ids += [tokenizer.eos_token_id]
-        #         labels += [tokenizer.eos_token_id]
-
         for example in examples["conversations"]:
             input_ids, labels = [], []
 
-            # ##### Baichuan2-characters #####
-            # system_role = example['from']
-            # history = example['history']
-            # utterance = example['value']
-            # system = format_Baichuan2_character_system(system_role)
-            # value_ids = tokenizer.encode(text=system, add_special_tokens=False)
-            # input_ids += value_ids
-            # labels += [IGNORE_INDEX] * len(value_ids)
+            ##### cwj #####
+            context = example['context']
+            question = example['question']
+            answer = example['answer']
 
-
-            # for _ in history:
-            #     cur_role = _['from']
-            #     cur_utterance = _['value']
-            #     cur_input = format_character(cur_role, cur_utterance)
-            #     value_ids = tokenizer.encode(text=cur_input, add_special_tokens=False)
-            #     input_ids += value_ids
-            #     labels += [IGNORE_INDEX] * len(value_ids)
-
-            # flag = '<{}>'.format(system_role)
-            # value_ids = tokenizer.encode(text=flag, add_special_tokens=False)
-            # input_ids += value_ids
-            # labels += [IGNORE_INDEX] * len(value_ids)
-
-            # value_ids = tokenizer.encode(text=utterance, add_special_tokens=False)
-            # input_ids += value_ids + [tokenizer.eos_token_id]
-            # labels += value_ids + [tokenizer.eos_token_id]
-
-            ##### dialog_inpainting_zh #####
-            text = example['inputs']
-            label = example['label']
-
-            value_ids = tokenizer.encode(text=text, add_special_tokens=False)
+            value_ids = tokenizer.encode(text='<CTX>'+context, add_special_tokens=False)
             input_ids += value_ids
             labels += [IGNORE_INDEX] * len(value_ids)
 
-            value_ids = tokenizer.encode(text=label, add_special_tokens=False)
+            value_ids = tokenizer.encode(text='<QUES>'+question, add_special_tokens=False)
+            input_ids += value_ids
+            labels += [IGNORE_INDEX] * len(value_ids)
+
+            value_ids = tokenizer.encode(text='<ANS>'+answer, add_special_tokens=False)
             input_ids += value_ids + [tokenizer.eos_token_id]
             labels += value_ids + [tokenizer.eos_token_id]
-
 
 
             if len(input_ids) > max_length:
@@ -159,16 +110,6 @@ def preprocess_dataset(
             model_inputs["labels"].append(target_ids)
 
         return model_inputs
-    
-    def format_Baichuan2_character_system(role):
-        prompt = """<SYSTEM>I want you to act like {}.
-If others‘ questions are related with the novel, please try to reuse the original lines from the novel.
-I want you to respond and answer like {} using the tone, manner and vocabulary {} would use.
-You must know all of the knowledge of {}."""
-        return prompt.format(role, role, role, role)
-    
-    def format_character(role, utterance):
-        return "<{}>{}".format(role, utterance)
 
     def preprocess_pairwise_dataset(examples):
         # build input pairs with format `<bos> X`, `Y1 <eos>` and `Y2 <eos>`
